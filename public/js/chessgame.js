@@ -40,11 +40,18 @@ const renderBoard = () => {
 
             sourceSquare = { row: rowIndex, col: squareIndex };
 
+            const squareName = `${String.fromCharCode(97 + squareIndex)}${
+              8 - rowIndex
+            }`;
+
+            highlightMoves(squareName);
+
             e.dataTransfer.setData("text/plain", "");
           }
         });
 
         pieceElement.addEventListener("dragend", () => {
+          clearHighlights();
           draggedPiece = null;
           sourceSquare = null;
         });
@@ -89,22 +96,16 @@ const handleMove = (sourceSquare, targetSource) => {
 };
 
 const getPieceUnicode = (piece) => {
-  const unicodePieces = {
-    p: "♟", // black pawn
-    r: "♜", // black rook
-    n: "♞", // black knight
-    b: "♝", // black bishop
-    q: "♛", // black queen
-    k: "♚", // black king
-    P: "♙", // white pawn
-    R: "♖", // white rook
-    N: "♘", // white knight
-    B: "♗", // white bishop
-    Q: "♕", // white queen
-    K: "♔", // white king
+  const pieces = {
+    p: "♙", // white pawn
+    r: "♖", // white rook
+    n: "♘", // white knight
+    b: "♗", // white bishop
+    q: "♕", // white queen
+    k: "♔", // white king
   };
 
-  return unicodePieces[piece.type] || "";
+  return pieces[piece.type] || "";
 };
 
 socket.on("playerRole", (role) => {
@@ -123,6 +124,51 @@ socket.on("boardState", function (fen) {
 });
 socket.on("move", (move) => {
   chess.move(move);
+  clearHighlights();
   renderBoard();
 });
-renderBoard();
+
+const clearHighlights = () => {
+  document
+    .querySelectorAll(".square.highlight, .square.capture")
+    .forEach((sq) => sq.classList.remove("highlight", "capture"));
+};
+
+const highlightMoves = (square) => {
+  clearHighlights();
+
+  const moves = chess.moves({
+    square,
+    verbose: true,
+  });
+
+  moves.forEach((move) => {
+    const col = move.to.charCodeAt(0) - 97;
+    const row = 8 - parseInt(move.to[1]);
+
+    const targetSquare = document.querySelector(
+      `.square[data-row="${row}"][data-col="${col}"]`
+    );
+
+    if (targetSquare) {
+      targetSquare.classList.add(move.captured ? "capture" : "highlight");
+    }
+  });
+};
+
+const statusElement = document.getElementById("status");
+
+socket.on("status", (status) => {
+  if (status === "waiting") {
+    statusElement.innerText = "⏳ Waiting for opponent...";
+  }
+
+  if (status === "connected") {
+    statusElement.innerText = " Opponent connected!";
+    renderBoard();
+  }
+
+  if (status === "opponent-left") {
+    statusElement.innerText = " Opponent disconnected. Waiting...";
+  }
+});
